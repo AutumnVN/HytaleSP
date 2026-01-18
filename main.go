@@ -67,8 +67,11 @@ func checkForUpdates() {
 	}
 
 	if wMainWin != nil {
-		updateWindow();
-		writeSettings();
+		loop.Do(func() error {
+			updateWindow();
+			writeSettings();
+			return nil;
+		});
 	}
 }
 
@@ -331,9 +334,14 @@ func usernameBox() base.Widget {
 
 func updateProgress(done int64, total int64) {
 	lastProgress := wProgress;
-	wProgress = int((float64(done) / float64(total)) * 100.0);
-	if lastProgress != wProgress{
-		updateWindow();
+	newProgress := int((float64(done) / float64(total)) * 100.0);
+
+	if newProgress != lastProgress {
+		wProgress = newProgress
+		loop.Do(func() error {
+			updateWindow();
+			return nil;
+		});
 	}
 }
 
@@ -385,15 +393,26 @@ func renderWindow() base.Widget {
 						OnClick: func() {
 							go func() {
 								wDisabled = true;
-								updateWindow();
+
+								loop.Do(func() error {
+									updateWindow();
+									return nil;
+								});
 
 								installJre(updateProgress);
 								installGame(wCommune.SelectedVersion, wCommune.Patchline, updateProgress);
 								launchGame(wCommune.SelectedVersion, wCommune.Patchline, wCommune.Username, usernameToUuid(wCommune.Username));
 
 								wDisabled = false;
-								updateWindow();
+
+								loop.Do(func() error {
+									updateWindow();
+									return nil;
+								});
+
 							}();
+
+
 						},
 					},
 					installLocation(),

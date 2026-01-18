@@ -4,3 +4,5 @@ builds/*
 redist/*
 *.exe
 *.syso
+
+hytLauncher*

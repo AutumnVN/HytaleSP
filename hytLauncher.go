@@ -1,7 +1,6 @@
 package main
 
 import (
-	"embed"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,9 +13,6 @@ import (
 	"strings"
 )
 
-
-//go:embed Aurora/Build/Aurora.dll
-var emb embed.FS
 
 func urlToPath(targetUrl string) string {
 	nurl, _ := url.Parse(targetUrl);
@@ -99,7 +95,15 @@ func downloadLatestVersion(atokens accessTokens, architecture string, operatingS
 func installJre(progress func(done int64, total int64)) any {
 	jres, ok := getJres("release").(versionFeed);
 	if ok {
+
 		downloadUrl := jres.DownloadUrls.Windows.Amd64.URL;
+
+		if runtime.GOOS == "linux" {
+			downloadUrl = jres.DownloadUrls.Linux.Amd64.URL;
+		} else if runtime.GOOS == "darwin" {
+			downloadUrl = jres.DownloadUrls.Darwin.Amd64.URL;
+		}
+
 		save := getJreDownloadPath(runtime.GOOS, runtime.GOARCH, downloadUrl);
 		unpack := getJrePath(runtime.GOOS, runtime.GOARCH);
 
@@ -251,10 +255,11 @@ func launchGame(version int, channel string, username string, uuid string) {
 
 		// write fakeonline dll
 		if runtime.GOOS == "windows" {
+
+
 			dllName := filepath.Join(filepath.Dir(clientBinary), "Secur32.dll");
-			data, err := emb.ReadFile("Aurora/Build/Aurora.dll");
+			data, err := embeddedFiles.ReadFile("Aurora/Build/Aurora.dll");
 			if err != nil {
-				fmt.Printf("Failied to read aurora.dll %s\n", err);
 				panic("failed to read aurora dll");
 			}
 			os.WriteFile(dllName, data, 0777);

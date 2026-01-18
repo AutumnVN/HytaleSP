@@ -84,3 +84,9 @@ type versionFeed struct {
 	Version string   `json:"version"`
 	DownloadUrls downloadUrls `json:"download_url"`
 }
+
+type sessionNew struct {
+	ExpiresAt     time.Time `json:"expiresAt"`
+	IdentityToken string    `json:"identityToken"`
+	SessionToken  string    `json:"sessionToken"`
+}

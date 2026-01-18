@@ -26,12 +26,12 @@ var wSkin = "{\"bodyCharacteristic\":\"Default.11\",\"underwear\":\"Bra.Blue\",\
 
 
 func getSkinJsonPath() string {
-	return path.Join(ServerDataFolder(), "skin.json");
+	return filepath.Join(ServerDataFolder(), "skin.json");
 }
 
 func readSkinData() {
 	load := getSkinJsonPath();
-	os.MkdirAll(path.Dir(load), 0666);
+	os.MkdirAll(filepath.Dir(load), 0666);
 
 	_, err := os.Stat(load);
 	if err != nil {
@@ -44,7 +44,7 @@ func readSkinData() {
 
 func writeSkinData(newData string) {
 	save := getSkinJsonPath();
-	os.MkdirAll(path.Dir(save), 0666);
+	os.MkdirAll(filepath.Dir(save), 0666);
 	fmt.Printf("Writing skin data %s\n", save);
 
 
@@ -196,6 +196,23 @@ func handleMyAccountLauncherData(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
+
+func handleSessionChild(w http.ResponseWriter, req *http.Request) {
+
+	w.WriteHeader(404);
+
+	/*
+	session := sessionNew{
+		ExpiresAt: time.Now().Add(time.Hour*10),
+		IdentityToken: generateIdentityJwt("hytale:server"),
+		SessionToken: generateSessionJwt("hytale:server"),
+	}
+
+	w.Header().Add("Content-Type", "application/json");
+	w.WriteHeader(200);
+	json.NewEncoder(w).Encode(session);*/
+
+}
 func handleManifest(w http.ResponseWriter, req *http.Request) {
 
 	target := req.PathValue("target")
@@ -204,7 +221,7 @@ func handleManifest(w http.ResponseWriter, req *http.Request) {
 	patch := req.PathValue("patch")
 	fmt.Printf("target: %s\narch: %s\nbranch: %s\npatch: %s\n", target, arch, branch, patch);
 
-	p := path.Join("patches", target, arch, branch, patch, "manifest.json");
+	p := filepath.Join("patches", target, arch, branch, patch, "manifest.json");
 
 	http.ServeFile(w, req, p);
 
@@ -212,8 +229,8 @@ func handleManifest(w http.ResponseWriter, req *http.Request) {
 
 func handlePatches(w http.ResponseWriter, req *http.Request) {
 
-	filepath := req.PathValue("filepath");
-	p := path.Join("patches", filepath);
+	fp := req.PathValue("filepath");
+	p := filepath.Join("patches", fp);
 
 	_, err := os.Stat(p);
 	if err != nil {
@@ -223,9 +240,11 @@ func handlePatches(w http.ResponseWriter, req *http.Request) {
 	http.ServeFile(w, req, p);
 }
 
+
 func runServer() {
 
 	mux := http.NewServeMux()
+	// account-data.hytale.com
 	mux.HandleFunc("/my-account/game-profile", handleMyAccountGameProfile);
 	mux.HandleFunc("/my-account/skin", handleMyAccountSkin)
 	mux.HandleFunc("/my-account/cosmetics", handleMyAccountCosmetics)
@@ -233,6 +252,9 @@ func runServer() {
 
 	mux.HandleFunc("/patches/{target}/{arch}/{branch}/{patch}", handleManifest);
 	mux.HandleFunc("/patches/{filepath...}", handlePatches);
+
+	// session.hytale.com
+	mux.HandleFunc("/game-session/child", handleSessionChild);
 
 	var handler  http.Handler = mux
 	handler = logRequestHandler(handler)
@@ -254,7 +276,7 @@ func fakeSign() string {
 	return base64.URLEncoding.EncodeToString(data);
 }
 
-func generateSessionJwt() string {
+func generateSessionJwt(scope string) string {
 	head := jwtHeader{
 		Alg: "EdDSA",
 		Kid: "2025-10-01",
@@ -263,12 +285,12 @@ func generateSessionJwt() string {
 
 
 	sesTok := sessionToken {
-		Exp: int(time.Now().AddDate(0,0,1).Unix()),
+		Exp: int(time.Now().Add(time.Hour*10).Unix()),
 		Iat: int(time.Now().Unix()),
 		Iss: "https://sessions.hytale.com",
 		Jti: uuid.NewString(),
-		Scope: "hytale:client",
-		Sub: uuid.NewString(),
+		Scope: scope,
+		Sub: usernameToUuid(wCommune.Username),
 	};
 
 	return b64json(head) + "." + b64json(sesTok) + "." + fakeSign();
@@ -283,7 +305,7 @@ func usernameToUuid(username string) string {
 	return h[:8]+"-"+h[8:12]+"-"+h[12:16]+"-"+h[16:20]+"-"+h[20:32];
 }
 
-func generateIdentityJwt() string {
+func generateIdentityJwt(scope string) string {
 	head := jwtHeader{
 		Alg: "EdDSA",
 		Kid: "2025-10-01",
@@ -291,12 +313,12 @@ func generateIdentityJwt() string {
 	};
 
 	idTok := identityToken {
-		Exp: int(time.Now().AddDate(0,0,1).Unix()),
+		Exp: int(time.Now().Add(time.Hour*10).Unix()),
 		Iat: int(time.Now().Unix()),
 		Iss: "https://sessions.hytale.com",
 		Jti: uuid.NewString(),
-		Scope: "hytale:client",
-		Sub: uuid.NewString(),
+		Scope: scope,
+		Sub: usernameToUuid(wCommune.Username),
 		Profile: profileInfo {
 			Username: wCommune.Username,
 			Entitlements: ENTITLEMENTS,

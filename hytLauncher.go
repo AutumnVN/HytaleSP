@@ -257,9 +257,9 @@ func launchGame(version int, channel string, username string, uuid string) {
 		    "--name",
 		    username,
 		    "--identity-token",
-		    generateIdentityJwt(),
+		    generateIdentityJwt("hytale:client"),
 		    "--session-token",
-		    generateSessionJwt());
+		    generateSessionJwt("hytale:client"));
 
 		fmt.Printf("Running: %s %s\n", clientBinary, strings.Join(e.Args, " "))
 

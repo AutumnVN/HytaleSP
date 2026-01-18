@@ -13,12 +13,6 @@ import (
 	"path/filepath"
 )
 
-var HOME_FOLDER, _ = os.UserHomeDir();
-var MAIN_FOLDER = filepath.Join(HOME_FOLDER, "hytLauncher");
-var GAME_FOLDER = filepath.Join(MAIN_FOLDER, "game", "versions");
-var USERDATA_FOLDER = filepath.Join(MAIN_FOLDER, "userdata");
-var LAUNCHER_FOLDER = filepath.Join(MAIN_FOLDER, "launcher");
-var JRE_FOLDER = filepath.Join(MAIN_FOLDER, "jre");
 
 func urlToPath(targetUrl string) string {
 	nurl, _ := url.Parse(targetUrl);
@@ -57,23 +51,28 @@ func download(targetUrl string, saveFilename string, progress func(done int64, t
 
 
 func getVersionDownloadPath(startVersion int, endVersion int, channel string) string {
-	fp := filepath.Join(GAME_FOLDER, "download", channel, strconv.Itoa(endVersion), strconv.Itoa(startVersion) + "-" + strconv.Itoa(endVersion)+".pwr");
+	fp := filepath.Join(GameFolder(), "download", channel, strconv.Itoa(endVersion), strconv.Itoa(startVersion) + "-" + strconv.Itoa(endVersion)+".pwr");
+	return fp;
+}
+
+func getVersionsFolder(channel string) string {
+	fp := filepath.Join(GameFolder(), channel);
 	return fp;
 }
 
 func getVersionInstallPath(endVersion int, channel string) string {
-	fp := filepath.Join(GAME_FOLDER, channel, strconv.Itoa(endVersion));
+	fp := filepath.Join(getVersionsFolder(channel), strconv.Itoa(endVersion));
 	return fp;
 }
 
 func getJrePath(operatingSystem string, architecture string) string {
-	fp := filepath.Join(JRE_FOLDER, operatingSystem, architecture);
+	fp := filepath.Join(JreFolder(), operatingSystem, architecture);
 	return fp;
 }
 
 func getJreDownloadPath(operatingSystem string, architecture string, downloadUrl string) string {
 	u, _ := url.Parse(downloadUrl);
-	fp := filepath.Join(JRE_FOLDER, "download", operatingSystem, architecture, path.Base(u.Path));
+	fp := filepath.Join(JreFolder(), "download", operatingSystem, architecture, path.Base(u.Path));
 	return fp;
 }
 
@@ -107,6 +106,8 @@ func installJre(progress func(done int64, total int64)) any {
 				os.Remove(save);
 				os.RemoveAll(filepath.Dir(save));
 				return unpack;
+			} else {
+				panic("Failed to download jre");
 			}
 		}
 
@@ -116,7 +117,7 @@ func installJre(progress func(done int64, total int64)) any {
 }
 
 func isGameVersionInstalled(version int, channel string) bool {
-	gameDir := getVersionInstallPath(version, channel);
+	gameDir := findClientBinary(version, channel);
 	_, err := os.Stat(gameDir);
 	if err != nil {
 		return false;
@@ -124,21 +125,60 @@ func isGameVersionInstalled(version int, channel string) bool {
 	return true;
 }
 
+func findClosestVersion(targetVersion int, channel string) int {
+	installFolder := getVersionsFolder(channel);
+
+	fVersion := 0;
+
+	d, err := os.ReadDir(installFolder);
+	if err != nil {
+		return fVersion;
+	}
+
+	for _, e := range d {
+		if !e.IsDir() {
+			continue;
+		}
+
+		ver, err := strconv.Atoi(e.Name());
+
+		if err != nil {
+			continue;
+		}
+
+		if ver > fVersion && ver < targetVersion {
+			fVersion = ver;
+		}
+	}
+
+	return fVersion;
+
+}
+
 func installGame(version int, channel string, progress func(done int64, total int64)) any {
 	save := getVersionDownloadPath(0, version, channel);
 	unpack := getVersionInstallPath(version, channel);
 
+	closestVersion := findClosestVersion(version, channel);
+	srcPath := getVersionInstallPath(closestVersion, channel);
+
+	fmt.Printf("Closest version: %d\n", closestVersion);
+	fmt.Printf("Src Path: %s\n", srcPath);
+
+
 	if !isGameVersionInstalled(version, channel) {
-		downloadUrl := guessPatchUrlNoAuth(runtime.GOARCH, runtime.GOOS, channel, 0, version);
+		downloadUrl := guessPatchUrlNoAuth(runtime.GOARCH, runtime.GOOS, channel, closestVersion, version);
 		pwr := download(downloadUrl, save, progress);
 		os.MkdirAll(unpack, 0775);
 
 		if _, ok := pwr.(string); ok {
-			applyPatch(unpack, unpack, save);
+			applyPatch(srcPath, unpack, save);
 
 			os.Remove(save);
 			os.RemoveAll(filepath.Dir(save));
 			return unpack;
+		} else {
+			panic("Failed to download version");
 		}
 	}
 	return nil;
@@ -149,8 +189,7 @@ func findJavaBin() any {
 
 	d, err := os.ReadDir(jrePath);
 	if err != nil {
-		fmt.Printf("err: %s\n", err);
-		os.Exit(0);
+		panic(err);
 	}
 
 	for _, e := range d {
@@ -168,34 +207,46 @@ func findJavaBin() any {
 	return nil;
 }
 
-func launchGame(version int, channel, username string, uuid string) {
+func findClientBinary(version int, channel string) string {
+	clientFolder := filepath.Join(getVersionInstallPath(version, channel), "Client");
+
+	switch(runtime.GOOS) {
+		case "windows":
+			return filepath.Join(clientFolder, "HytaleClient.exe");
+		case "darwin":
+			fallthrough; // TODO: confirm this ..
+		case "linux":
+			return filepath.Join(clientFolder, "HytaleClient");
+		default:
+			panic("Hytale is not supported by your OS.");
+	}
+}
+
+func launchGame(version int, channel string, username string, uuid string) {
 
 	javaBin, _ := findJavaBin().(string);
 
 
-	if runtime.GOOS == "windows" {
-		appDir := getVersionInstallPath(version, channel)
-		userDir := USERDATA_FOLDER
-		hytaleClientBin := filepath.Join(appDir, "Client", "HytaleClient.exe");
+	appDir := getVersionInstallPath(version, channel)
+	userDir := UserDataFolder()
+	clientBinary := findClientBinary(version, channel);
 
-		e := exec.Command(hytaleClientBin,
-				"--app-dir",
-				appDir,
-				"--user-dir",
-				userDir,
-				"--java-exec",
-				javaBin,
-				"--auth-mode",
-				"offline",
-				"--uuid",
-				uuid,
-				"--name",
-				username);
+	e := exec.Command(clientBinary,
+			"--app-dir",
+			appDir,
+			"--user-dir",
+			userDir,
+			"--java-exec",
+			javaBin,
+			"--auth-mode",
+			"offline",
+			"--uuid",
+			uuid,
+			"--name",
+			username);
 
-		fmt.Printf("Running: %s %s\n", hytaleClientBin, strings.Join(e.Args, " "))
+	fmt.Printf("Running: %s %s\n", clientBinary, strings.Join(e.Args, " "))
 
-		e.Start();
+	e.Start();
 
-		//runServer(username, uuid);
-	}
 }

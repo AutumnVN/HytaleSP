@@ -22,8 +22,6 @@ const OAUTH_URL = "https://oauth.accounts.hytale.com/oauth2/auth";
 const TOKEN_URL = "https://oauth.accounts.hytale.com/oauth2/token";
 const REDIRECT_URI = "https://accounts.hytale.com/consent/client";
 
-var TOKEN_JSON = filepath.Join(LAUNCHER_FOLDER, "token.json");
-
 
 func openUrl(url string) {
 	switch runtime.GOOS {
@@ -180,8 +178,12 @@ func refreshToken(refreshToken string) accessTokens{
 	return newTokens;
 }
 
+func getTokenFilePath() string {
+	return filepath.Join(LauncherFolder(), "token.json");
+}
+
 func hasSavedTokens() bool {
-	_, err := os.Stat(TOKEN_JSON);
+	_, err := os.Stat(getTokenFilePath());
 	if err != nil {
 		return false;
 	}
@@ -189,7 +191,7 @@ func hasSavedTokens() bool {
 }
 
 func loadTokens() accessTokens {
-	jTokens, _ := os.ReadFile(TOKEN_JSON);
+	jTokens, _ := os.ReadFile(getTokenFilePath());
 	tokens  := accessTokens{};
 
 	json.Unmarshal(jTokens, &tokens);
@@ -199,8 +201,8 @@ func loadTokens() accessTokens {
 func saveTokens(tokens accessTokens) {
 	jTokens, _ := json.Marshal(tokens);
 
-	os.MkdirAll(filepath.Dir(TOKEN_JSON), 0666);
-	os.WriteFile(TOKEN_JSON, []byte(jTokens), 0666);
+	os.MkdirAll(filepath.Dir(getTokenFilePath()), 0666);
+	os.WriteFile(getTokenFilePath(), []byte(jTokens), 0666);
 }
 
 

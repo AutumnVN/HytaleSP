@@ -1,3 +1,5 @@
+//go:generate goversioninfo
+
 package main
 
 import (
@@ -12,21 +14,30 @@ import (
 	"bitbucket.org/rj/goey/base"
 	"bitbucket.org/rj/goey/loop"
 	"bitbucket.org/rj/goey/windows"
+	"github.com/sqweek/dialog"
 )
 
-var LAUNCHER_JSON = filepath.Join(LAUNCHER_FOLDER, "launcher.json");
-
-type launcherState struct {
+type launcherCommune struct {
 	Patchline string `json:"last_patchline"`
 	Username string `json:"last_username"`
 	SelectedVersion int `json:"last_version"`
 	LatestVersions map[string]int `json:"last_version_scan_result"`
+	GameFolder string `json:"install_directory"`
 }
 
 
 var(
 	wMainWin *windows.Window
-	wCommune launcherState;
+	wCommune = launcherCommune {
+		Patchline: "release",
+		Username: "TransRights",
+		LatestVersions: map[string]int{
+			"release": 4,
+			"pre-release": 8,
+		},
+		SelectedVersion: 4,
+		GameFolder: DefaultGameFolder(),
+	};
 	wProgress = 0
 	wDisabled = false
 )
@@ -63,14 +74,13 @@ func writeSettings() {
 	fmt.Printf("Saving settings ...\n");
 	jlauncher, _ := json.Marshal(wCommune);
 
-	err := os.MkdirAll(filepath.Dir(LAUNCHER_JSON), 0666);
+	err := os.MkdirAll(filepath.Dir(getLauncherJson()), 0666);
 	if err != nil {
 		fmt.Printf("error writing settings: %s\n", err);
 		return;
 	}
 
-
-	err = os.WriteFile(LAUNCHER_JSON, jlauncher, 0666);
+	err = os.WriteFile(getLauncherJson(), jlauncher, 0666);
 	if err != nil {
 		fmt.Printf("error writing settings: %s\n", err);
 		return;
@@ -78,31 +88,30 @@ func writeSettings() {
 }
 
 func getDefaultSettings() {
-	wCommune.Patchline = "release";
-	wCommune.LatestVersions = map[string]int{
-		"release": 4,
-		"pre-release": 8,
-	};
-	wCommune.SelectedVersion = wCommune.LatestVersions[wCommune.Patchline];
-	wCommune.Username = "TransRights";
 	writeSettings();
-
-	// check for updates in the background
 	go checkForUpdates();
 
 }
 
+func getLauncherJson() string {
+	return filepath.Join(LauncherFolder(), "launcher.json");
+}
+
 func readSettings() {
-	_, err := os.Stat(LAUNCHER_JSON)
+	_, err := os.Stat(getLauncherJson())
 	if err != nil {
 		getDefaultSettings();
 	} else {
-		data, err := os.ReadFile(LAUNCHER_JSON);
+		data, err := os.ReadFile(getLauncherJson());
 		if err != nil{
 			getDefaultSettings();
 			return;
 		}
 		json.Unmarshal(data, &wCommune);
+
+		if wCommune.GameFolder != GameFolder() {
+			wCommune.GameFolder = GameFolder();
+		}
 
 		fmt.Printf("Reading last settings: \n");
 		fmt.Printf("username: %s\n", wCommune.Username);
@@ -165,7 +174,10 @@ func patchLineMenu() base.Widget {
 
 func versionMenu() base.Widget {
 	versions := goey.SelectInput {
-		OnChange: func(v int) { wCommune.SelectedVersion = v+1},
+		OnChange: func(v int) {
+			wCommune.SelectedVersion = v+1;
+			updateWindow()
+		},
 		Disabled: wDisabled,
 	};
 	latest := wCommune.LatestVersions[wCommune.Patchline];
@@ -181,14 +193,85 @@ func versionMenu() base.Widget {
 		versions.Items = append(versions.Items, txt);
 	}
 
-	versions.Value = wCommune.SelectedVersion;
+	selectedVersion := wCommune.SelectedVersion;
+	selectedChannel := wCommune.Patchline;
+
+	versions.Value = (selectedVersion-1);
+	disabled := !isGameVersionInstalled(selectedVersion, selectedChannel) || wDisabled;
 
 	return &goey.VBox{
 		AlignMain: goey.SpaceBetween,
 		Children: []base.Widget{
 			&goey.Label{Text: "Version:"},
-			&versions,
+
+			&goey.HBox{
+				AlignCross: goey.CrossCenter,
+				Children: []base.Widget{
+					&goey.Expand{
+						Child: &versions,
+					},
+					&goey.Button {
+						Text: "Delete",
+						Disabled: disabled,
+						OnClick: func() {
+							wDisabled = true;
+							updateWindow();
+
+							go func() {
+								installDir := getVersionInstallPath(selectedVersion, wCommune.Patchline);
+								err := os.RemoveAll(installDir);
+								if err != nil {
+									fmt.Printf("failed to remove: %s", err);
+									wMainWin.Message(fmt.Sprintf("failed to remove: %s", err)).WithError().WithTitle("Failed to remove").Show();
+								}
+								wDisabled = false;
+								updateWindow();
+							}();
+						},
+					},
+				},
+			},
 		},
+	};
+}
+
+func installLocation() base.Widget {
+	return &goey.VBox {
+			AlignMain: goey.SpaceBetween,
+			Children: []base.Widget {
+				&goey.HR{},
+				&goey.Label{ Text: "Install Location:" },
+				&goey.HBox{
+					AlignCross: goey.CrossCenter,
+					Children: []base.Widget {
+						&goey.Expand{
+							Child: &goey.TextInput{
+								Placeholder: "Install Location",
+								Value: wCommune.GameFolder,
+								OnChange: func(v string) {
+									wCommune.GameFolder = v;
+									updateWindow();
+								},
+							},
+						},
+						&goey.Button{
+							Text: "Browse",
+							OnClick: func() {
+								dir, err := dialog.Directory().Title("Select install location").Browse();
+								if err != nil {
+									if err != dialog.ErrCancelled {
+										errorMsg := fmt.Sprintf("Failed: %s", err);
+										wMainWin.Message(errorMsg).WithError().WithTitle("Error reading directory.").Show();
+									}
+								}
+
+								wCommune.GameFolder = dir;
+								updateWindow();
+							},
+						},
+					},
+				},
+			},
 	};
 }
 
@@ -231,8 +314,6 @@ func createWindow() error {
 	});
 
 	wMainWin = w;
-
-
 	return nil
 }
 
@@ -267,15 +348,18 @@ func renderWindow() base.Widget {
 						OnClick: func() {
 							go func() {
 								wDisabled = true;
+								updateWindow();
+
 								installJre(updateProgress);
 								installGame(wCommune.SelectedVersion, wCommune.Patchline, updateProgress);
 								launchGame(wCommune.SelectedVersion, wCommune.Patchline, wCommune.Username, usernameToUuid(wCommune.Username));
-								wDisabled = false;
 
+								wDisabled = false;
 								updateWindow();
 							}();
 						},
 					},
+					installLocation(),
 				},
 			},
 		},
@@ -285,12 +369,13 @@ func renderWindow() base.Widget {
 
 func main() {
 
-	os.MkdirAll(MAIN_FOLDER, 0666);
-	os.MkdirAll(GAME_FOLDER, 0666);
-	os.MkdirAll(USERDATA_FOLDER, 0666);
-	os.MkdirAll(JRE_FOLDER, 0666);
-
+	os.MkdirAll(MainFolder(), 0775);
+	os.MkdirAll(LauncherFolder(), 0775);
+	os.MkdirAll(UserDataFolder(), 0775);
+	os.MkdirAll(JreFolder(), 0775);
+	os.MkdirAll(ServerDataFolder(), 0775);
 	readSettings();
+	os.MkdirAll(GameFolder(), 0775);
 
 	err := loop.Run(createWindow)
 	if err != nil {

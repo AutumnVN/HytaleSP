@@ -1,3 +1,2 @@
-
-rsrc -manifest main.manifest -ico icon.ico
+go generate
 go build -ldflags="-H windowsgui"

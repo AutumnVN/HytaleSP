@@ -16,8 +16,11 @@ import (
 func applyPatch(source string, destination string, patchFilename string) {
 
 	consumer := &state.Consumer {
-		OnMessage: func(level string, message string) {
-			fmt.Printf("[%s] %s\n", level, message);
+		OnProgress: func(progress float64) {
+			fmt.Printf("Progress: %d\n", int(progress));
+		},
+		OnProgressLabel: func(progress string) {
+			fmt.Printf("Progress: %s\n", progress);
 		},
 	}
 

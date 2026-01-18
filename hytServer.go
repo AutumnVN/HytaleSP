@@ -15,8 +15,8 @@ import (
 
 	"github.com/google/uuid"
 )
-var SERVER_DATA_FOLDER = path.Join(MAIN_FOLDER, "serverdata");
-var ACCOUNT_INFO = accountInfo{
+
+var wAccountInfo = accountInfo{
 	Username: "Anonymous",
 	UUID: uuid.NewString(),
 	Entitlements: []string {"game.base", "game.deluxe", "game.founder" },
@@ -25,8 +25,12 @@ var ACCOUNT_INFO = accountInfo{
 	Skin: "{\"bodyCharacteristic\":\"Default.11\",\"underwear\":\"Bra.Blue\",\"face\":\"Face_Neutral\",\"ears\":\"Ogre_Ears\",\"mouth\":\"Mouth_Makeup\",\"haircut\":\"SideBuns.Black\",\"facialHair\":null,\"eyebrows\":\"RoundThin.Black\",\"eyes\":\"Plain_Eyes.Green\",\"pants\":\"Icecream_Skirt.Strawberry\",\"overpants\":\"LongSocks_Bow.Lime\",\"undertop\":\"VNeck_Shirt.Black\",\"overtop\":\"NeckHigh_Savanna.Pink\",\"shoes\":\"Wellies.Orange\",\"headAccessory\":null,\"faceAccessory\":null,\"earAccessory\":null,\"skinFeature\":null,\"gloves\":null,\"cape\":null}",
 };
 
+func getSkinJsonPath() string {
+	return path.Join(ServerDataFolder(), "skin.json");
+}
+
 func readSkinData() {
-	load := path.Join(SERVER_DATA_FOLDER, "skin.json");
+	load := getSkinJsonPath();
 	os.MkdirAll(path.Dir(load), 0666);
 
 	_, err := os.Stat(load);
@@ -34,22 +38,22 @@ func readSkinData() {
 		return;
 	}
 	skinData, _ := os.ReadFile(load);
-	ACCOUNT_INFO.Skin = string(skinData);
+	wAccountInfo.Skin = string(skinData);
 
 }
 
 func writeSkinData(newData string) {
-	save := path.Join(SERVER_DATA_FOLDER, "skin.json");
+	save := getSkinJsonPath();
 	os.MkdirAll(path.Dir(save), 0666);
 	fmt.Printf("Writing skin data %s\n", save);
 
 
 	os.WriteFile(save, []byte(newData), 0666);
-	ACCOUNT_INFO.Skin = newData;
+	wAccountInfo.Skin = newData;
 }
 
 func readCosmetics() string {
-	load := path.Join(SERVER_DATA_FOLDER, "cosmetics.json");
+	load := path.Join(ServerDataFolder(), "cosmetics.json");
 	os.MkdirAll(path.Dir(load), 0666);
 
 	_, err := os.Stat(load);
@@ -68,7 +72,7 @@ func readCosmetics() string {
 
 func getAccountInfo() accountInfo {
 	readSkinData();
-	return ACCOUNT_INFO;
+	return wAccountInfo;
 }
 
 func handleMyAccountSkin(w http.ResponseWriter, req *http.Request) {
@@ -155,8 +159,8 @@ func handlePatches(w http.ResponseWriter, req *http.Request) {
 
 func runServer(name string, uid string) {
 
-	ACCOUNT_INFO.UUID = uid;
-	ACCOUNT_INFO.Username = name;
+	wAccountInfo.UUID = uid;
+	wAccountInfo.Username = name;
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/my-account/game-profile", handleMyAccountGameProfile);
@@ -231,9 +235,9 @@ func generateIdentityJwt() string {
 		Scope: "hytale:client",
 		Sub: uuid.NewString(),
 		Profile: profileInfo {
-			Username: ACCOUNT_INFO.Username,
-			Entitlements: ACCOUNT_INFO.Entitlements,
-			Skin: ACCOUNT_INFO.Skin,
+			Username: wAccountInfo.Username,
+			Entitlements: wAccountInfo.Entitlements,
+			Skin: wAccountInfo.Skin,
 		},
 	};
 

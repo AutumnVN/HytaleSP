@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"bitbucket.org/rj/goey/loop"
 	"github.com/c4milo/unpackit"
 )
 
@@ -97,12 +99,16 @@ func installJre(progress func(done int64, total int64)) any {
 	jres, ok := getJres("release").(versionFeed);
 	if ok {
 
-		downloadUrl := jres.DownloadUrls.Windows.Amd64.URL;
+		var downloadUrl string;
 
-		if runtime.GOOS == "linux" {
-			downloadUrl = jres.DownloadUrls.Linux.Amd64.URL;
-		} else if runtime.GOOS == "darwin" {
-			downloadUrl = jres.DownloadUrls.Darwin.Amd64.URL;
+		switch(runtime.GOOS) {
+			case "windows":
+				downloadUrl = jres.DownloadUrls.Windows.Amd64.URL;
+			case "linux":
+				downloadUrl = jres.DownloadUrls.Linux.Amd64.URL;
+			case "darwin":
+				downloadUrl = jres.DownloadUrls.Darwin.Amd64.URL;
+
 		}
 
 		save := getJreDownloadPath(runtime.GOOS, runtime.GOARCH, downloadUrl);
@@ -276,7 +282,7 @@ func launchGame(version int, channel string, username string, uuid string) {
 			defer os.Remove(dllName);
 
 		} else {
-			fmt.Printf("Your OS does not support fakeonline.\n");
+			panic("os unsupported");
 		}
 
 
@@ -300,7 +306,10 @@ func launchGame(version int, channel string, username string, uuid string) {
 
 		fmt.Printf("Running: %s %s\n", clientBinary, strings.Join(e.Args, " "))
 
-		e.Start();
+		err := e.Start();
+		if err != nil {
+			wMainWin.Message(fmt.Sprintf("Failed to start %s", err)).WithError().WithTitle("Failed to start").Show();
+		}
 		defer e.Process.Kill();
 		e.Process.Wait();
 
@@ -326,7 +335,16 @@ func launchGame(version int, channel string, username string, uuid string) {
 
 		fmt.Printf("Running: %s %s\n", clientBinary, strings.Join(e.Args, " "))
 
-		e.Start();
+		err := e.Start();
+
+		if err != nil {
+			loop.Do(func() error{
+				wMainWin.Message(fmt.Sprintf("Failed to start %s", err)).WithError().WithTitle("Failed to start").Show();
+				return nil;
+			})
+		}
+
+
 		defer e.Process.Kill();
 		e.Process.Wait();
 	}

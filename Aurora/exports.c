@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 __declspec(dllexport) int GetUserNameExW(int nfmt, wchar_t* nameBuf, int* sz) {
+	printf("GetUsernameEx called\n");
 
 	if (sz != NULL)
 		*sz = 0;

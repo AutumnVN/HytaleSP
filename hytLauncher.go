@@ -313,7 +313,7 @@ func launchGame(version int, channel string, username string, uuid string) {
 			"--session-token",
 			generateSessionJwt("hytale:client"));
 
-		fmt.Printf("LD_PRELOAD=%s\n", dllName);
+		fmt.Printf("dll=%s\n", dllName);
 
 		if runtime.GOOS == "linux" {
 			os.Setenv("LD_PRELOAD", dllName);

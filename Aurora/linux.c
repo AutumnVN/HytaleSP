@@ -5,8 +5,8 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <stddef.h>
-#include <sys/mman.h>
 #include <errno.h>
+#include <sys/mman.h>
 #include <wchar.h>
 
 static int swaps = 0;
@@ -25,7 +25,7 @@ typedef struct modinfo {
 	size_t sz;
 } modinfo;
 
-int get_change_prot(uintptr_t addr, int newProt) {
+int change_prot(uintptr_t addr, int newProt) {
 	uintptr_t align = (addr - (addr % getpagesize()));
 	return mprotect((void*)align, getpagesize(), newProt);
 }
@@ -129,7 +129,7 @@ void overwrite(csString* dst, csString* src) {
 
 	int prev = get_prot(dst);
 
-	int b = get_change_prot((uintptr_t)dst, PROT_READ | PROT_WRITE);
+	int b = change_prot((uintptr_t)dst, PROT_READ | PROT_WRITE);
 
 	if(b == 0) {
 		memcpy(dst, src, get_size_ptr(src));
@@ -137,7 +137,7 @@ void overwrite(csString* dst, csString* src) {
 		printf("Failed to change memory protections %s", strerror(errno));
 	}
 
-	b = get_change_prot((uintptr_t)dst, prev);
+	b = change_prot((uintptr_t)dst, prev);
 
 }
 
@@ -162,13 +162,13 @@ void allowOfflineInOnline(uint8_t* src) {
 				void* target = &src[13];
 
 				int prev = get_prot(target);
-				int b = get_change_prot((uintptr_t)target, PROT_READ | PROT_WRITE);
+				int b = change_prot((uintptr_t)target, PROT_READ | PROT_WRITE);
 				if(b == 0){
 					memset(target, 0x90, 0x6);
 				} else {
 					printf("Failed to change memory protections %s\n", strerror(errno));
 				}
-				b = get_change_prot((uintptr_t)target, prev);
+				b = change_prot((uintptr_t)target, prev);
 
     }
 
@@ -197,7 +197,7 @@ __attribute__((constructor)) int run() {
 		// swap hytale.com with localhost ..
 		swap(&memory[i], L"hytale.com", L".1:59313");
 
-    // make local servers still run in offline mode
+		// make local servers still run in offline mode
 		swap(&memory[i], L"authenticated", L"offline");
 
 		if(swaps >= totalSwaps) break;

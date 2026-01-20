@@ -15,11 +15,25 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="dllmain.c">
+    <ClCompile Include="patch.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="exports.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="shared.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="cs_string.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="cs_string.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="shared.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

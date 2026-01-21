@@ -18,8 +18,10 @@ func MainFolder() string {
 		portable := filepath.Join(filepath.Dir(exe), LAUNCHER_NAME);
 		stat, err := os.Stat(portable);
 
-		if stat.IsDir() && err == nil {
-			return portable;
+		if err == nil {
+			if stat.IsDir() {
+				return portable;
+			}
 		}
 	}
 

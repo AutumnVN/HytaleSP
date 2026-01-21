@@ -13,15 +13,15 @@ func MainFolder() string {
 
 
 	// also check inside the same folder as the executable.
-	/*exe, err := os.Executable();
+	exe, err := os.Executable();
 	if err == nil {
 		portable := filepath.Join(filepath.Dir(exe), LAUNCHER_NAME);
-		_, err = os.Stat(portable);
+		stat, err := os.Stat(portable);
 
-		if err == nil {
+		if stat.IsDir() && err == nil {
 			return portable;
 		}
-	}*/
+	}
 
 	// this sucks why did i ever use this as the folder ?
 	// check old directory that i used to use in v0.5 and older ..

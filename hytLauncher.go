@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -12,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 
-	"bitbucket.org/rj/goey/loop"
 	"github.com/c4milo/unpackit"
 )
 
@@ -23,17 +23,20 @@ func urlToPath(targetUrl string) string {
 	return npath;
 }
 
-func download(targetUrl string, saveFilename string, progress func(done int64, total int64)) any {
+func download(targetUrl string, saveFilename string, progress func(done int64, total int64)) error {
 	fmt.Printf("Downloading %s\n", targetUrl);
 
 	os.MkdirAll(filepath.Dir(saveFilename), 0775);
 	resp, err := http.Get(targetUrl);
 	if err != nil {
-		return nil;
+		return err;
 	}
 
 	if resp.StatusCode == 200 {
-		f, _ := os.Create(saveFilename);
+		f, err := os.Create(saveFilename);
+		if err != nil {
+			return err;
+		}
 
 		defer f.Close();
 
@@ -49,7 +52,7 @@ func download(targetUrl string, saveFilename string, progress func(done int64, t
 		}
 	}
 
-	return saveFilename;
+	return nil;
 }
 
 func getVersionDownloadsFolder() string {
@@ -84,18 +87,46 @@ func getJreDownloadPath(operatingSystem string, architecture string, downloadUrl
 }
 
 
-func downloadLatestVersion(atokens accessTokens, architecture string, operatingSystem string, channel string, fromVersion int, progress func(done int64, total int64)) any {
+func downloadLatestVersion(atokens accessTokens, architecture string, operatingSystem string, channel string, fromVersion int, progress func(done int64, total int64)) error {
 	fmt.Printf("Start version: %d\n", fromVersion);
 	manifest := getVersionManifest(atokens, architecture, operatingSystem, channel, fromVersion);
 	for _, step := range manifest.Steps {
 		save := getVersionDownloadPath(step.From, step.To, channel);
 		return download(step.Pwr, save, progress);
 	}
-	return nil;
+	return errors.New("Could not locate latest version");
 }
 
 
-func installJre(progress func(done int64, total int64)) any {
+func isJreInstalled() bool {
+	javaBin, ok := findJavaBin().(string);
+	if ok {
+		_, err := os.Stat(javaBin);
+		if err != nil {
+			return false;
+		}
+		return true;
+	} else {
+		return false;
+	}
+}
+
+func isGameVersionInstalled(version int, channel string) bool {
+	gameDir := findClientBinary(version, channel);
+	_, err := os.Stat(gameDir);
+	if err != nil {
+		return false;
+	}
+	return true;
+}
+
+
+func installJre(progress func(done int64, total int64)) error{
+
+	if isJreInstalled() {
+		return nil;
+	}
+
 	jres, ok := getJres("release").(versionFeed);
 	if ok {
 
@@ -114,44 +145,31 @@ func installJre(progress func(done int64, total int64)) any {
 		save := getJreDownloadPath(runtime.GOOS, runtime.GOARCH, downloadUrl);
 		unpack := getJrePath(runtime.GOOS, runtime.GOARCH);
 
-		_, err := os.Stat(unpack);
-
+		err := download(downloadUrl, save, progress);
 		if err != nil {
-			_, ok := download(downloadUrl, save, progress).(string);
-			if ok {
-				os.MkdirAll(unpack, 0775);
-
-				f, err := os.Open(save);
-				if err != nil {
-					panic("failed to open jre download");
-				}
-
-				err = unpackit.Unpack(f, unpack);
-
-				if(err != nil) {
-					panic("failed to unpack jre");
-				}
-
-				os.Remove(save);
-				os.RemoveAll(filepath.Dir(save));
-				return unpack;
-			} else {
-				panic("Failed to download jre");
-			}
+			return err;
 		}
 
+		os.MkdirAll(unpack, 0775);
+
+		f, err := os.Open(save);
+		if err != nil {
+			return err;
+		}
+
+		err = unpackit.Unpack(f, unpack);
+
+		if(err != nil) {
+			return err;
+		}
+
+		os.Remove(save);
+		os.RemoveAll(filepath.Dir(save));
+		return nil;
+
 	}
 
-	return nil;
-}
-
-func isGameVersionInstalled(version int, channel string) bool {
-	gameDir := findClientBinary(version, channel);
-	_, err := os.Stat(gameDir);
-	if err != nil {
-		return false;
-	}
-	return true;
+	return errors.New("Failed to get the JRE feed.");
 }
 
 func findClosestVersion(targetVersion int, channel string) int {
@@ -184,7 +202,7 @@ func findClosestVersion(targetVersion int, channel string) int {
 
 }
 
-func installGame(version int, channel string, progress func(done int64, total int64)) any {
+func installGame(version int, channel string, progress func(done int64, total int64)) error {
 	save := getVersionDownloadPath(0, version, channel);
 	unpack := getVersionInstallPath(version, channel);
 
@@ -203,18 +221,20 @@ func installGame(version int, channel string, progress func(done int64, total in
 			downloadUrl = guessPatchUrlNoAuth(runtime.GOARCH, runtime.GOOS, channel, 0, version);
 		}
 
-		pwr := download(downloadUrl, save, progress);
+		err := download(downloadUrl, save, progress);
+
+		defer os.Remove(save);
+		defer os.RemoveAll(getVersionDownloadsFolder());
+
+		if err != nil {
+			return err;
+		}
+
 		os.MkdirAll(unpack, 0775);
 
-		if _, ok := pwr.(string); ok {
-			applyPatch(srcPath, unpack, save);
+		applyPatch(srcPath, unpack, save);
 
-			os.Remove(save);
-			os.RemoveAll(getVersionDownloadsFolder());
-			return unpack;
-		} else {
-			panic("Failed to download version");
-		}
+		return nil;
 	}
 	return nil;
 }
@@ -224,7 +244,7 @@ func findJavaBin() any {
 
 	d, err := os.ReadDir(jrePath);
 	if err != nil {
-		panic(err);
+		return nil;
 	}
 
 	for _, e := range d {
@@ -249,7 +269,7 @@ func findClientBinary(version int, channel string) string {
 		case "windows":
 			return filepath.Join(clientFolder, "HytaleClient.exe");
 		case "darwin":
-			fallthrough; // TODO: confirm this ..
+			fallthrough;
 		case "linux":
 			return filepath.Join(clientFolder, "HytaleClient");
 		default:
@@ -257,7 +277,7 @@ func findClientBinary(version int, channel string) string {
 	}
 }
 
-func launchGame(version int, channel string, username string, uuid string) {
+func launchGame(version int, channel string, username string, uuid string) error{
 
 	javaBin, _ := findJavaBin().(string);
 
@@ -290,7 +310,7 @@ func launchGame(version int, channel string, username string, uuid string) {
 		// write fakeonline dll
 		data, err := embeddedFiles.ReadFile(embedName);
 		if err != nil {
-			panic("failed to read aurora dll");
+			return errors.New("read embedded Aurora dll -- Try offline mode.");
 		}
 		os.WriteFile(dllName, data, 0777);
 		defer os.Remove(dllName);
@@ -322,8 +342,9 @@ func launchGame(version int, channel string, username string, uuid string) {
 		fmt.Printf("Running: %s\n", strings.Join(e.Args, " "))
 
 		err = e.Start();
+
 		if err != nil {
-			wMainWin.Message(fmt.Sprintf("Failed to start %s", err)).WithError().WithTitle("Failed to start").Show();
+			return err;
 		}
 
 		if runtime.GOOS == "linux" {
@@ -358,14 +379,12 @@ func launchGame(version int, channel string, username string, uuid string) {
 		err := e.Start();
 
 		if err != nil {
-			loop.Do(func() error{
-				wMainWin.Message(fmt.Sprintf("Failed to start %s", err)).WithError().WithTitle("Failed to start").Show();
-				return nil;
-			})
+			return err;
 		}
 
 
 		defer e.Process.Kill();
 		e.Process.Wait();
 	}
+	return nil;
 }

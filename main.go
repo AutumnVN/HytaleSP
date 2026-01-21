@@ -347,7 +347,7 @@ func updateProgress(done int64, total int64) {
 }
 
 func createWindow() error {
-	w, err := windows.NewWindow("hytLauncher", renderWindow())
+	w, err := windows.NewWindow(LAUNCHER_NAME, renderWindow())
 	if err != nil {
 		return err
 	}
@@ -369,6 +369,14 @@ func updateWindow() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 	}
+}
+
+func showErrorDialog(msg string, title string) {
+		loop.Do(func() error {
+			wMainWin.Message(msg).WithError().WithTitle(title).Show();
+			return nil;
+		})
+
 }
 
 func renderWindow() base.Widget {
@@ -393,23 +401,44 @@ func renderWindow() base.Widget {
 						Disabled: wDisabled,
 						OnClick: func() {
 							go func() {
-								wDisabled = true;
 
+								// disable the current window
 								loop.Do(func() error {
+									wDisabled = true;
 									updateWindow();
 									return nil;
 								});
 
-								installJre(updateProgress);
-								installGame(wCommune.SelectedVersion, wCommune.Patchline, updateProgress);
-								launchGame(wCommune.SelectedVersion, wCommune.Patchline, wCommune.Username, usernameToUuid(wCommune.Username));
 
-								wDisabled = false;
+								// enable the window again once done
+								defer func() {
+									wDisabled = false;
+									loop.Do(func() error {
+										updateWindow();
+										return nil;
+									});
+								}();
 
-								loop.Do(func() error {
-									updateWindow();
-									return nil;
-								});
+								err := installJre(updateProgress);
+
+								if err != nil {
+									showErrorDialog(fmt.Sprintf("Error getting the JRE: %s", err), "Install JRE failed.");
+									return;
+								};
+
+								err = installGame(wCommune.SelectedVersion, wCommune.Patchline, updateProgress);
+
+								if err != nil {
+									showErrorDialog(fmt.Sprintf("Error getting the game: %s", err), "Install game failed.");
+									return;
+								};
+
+								err = launchGame(wCommune.SelectedVersion, wCommune.Patchline, wCommune.Username, usernameToUuid(wCommune.Username));
+
+								if err != nil {
+									showErrorDialog(fmt.Sprintf("Error running the game: %s", err), "Run game failed.");
+									return;
+								};
 
 							}();
 

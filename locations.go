@@ -3,12 +3,52 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 )
 
-var HOME_FOLDER, _ = os.UserHomeDir();
+var LAUNCHER_NAME = "hytLauncher";
 
 func MainFolder() string {
-	return filepath.Join(HOME_FOLDER, "hytLauncher");;
+
+
+	// also check inside the same folder as the executable.
+	/*exe, err := os.Executable();
+	if err == nil {
+		portable := filepath.Join(filepath.Dir(exe), LAUNCHER_NAME);
+		_, err = os.Stat(portable);
+
+		if err == nil {
+			return portable;
+		}
+	}*/
+
+	// this sucks why did i ever use this as the folder ?
+	// check old directory that i used to use in v0.5 and older ..
+	home, err :=  os.UserHomeDir();
+	if err != nil {
+		panic("Cannot find the home directory.");
+	}
+	oldFolder := filepath.Join(home, "hytLauncher");
+
+	// if not found then use the new "app data" directory;
+	_, err = os.Stat(oldFolder);
+	if err != nil {
+		switch(runtime.GOOS) {
+			case "windows":
+				appdata, valid := os.LookupEnv("APPDATA");
+				if valid == true {
+					return filepath.Join(appdata, LAUNCHER_NAME);
+				}
+			case "linux":
+				return filepath.Join(home, ".config", LAUNCHER_NAME);
+			case "darwin":
+				return filepath.Join(home, "Library", LAUNCHER_NAME);
+		}
+	}
+
+	return oldFolder;
+
 }
 
 func DefaultGameFolder() string {
@@ -16,8 +56,7 @@ func DefaultGameFolder() string {
 }
 
 func GameFolder() string {
-	_, err := os.Stat(wCommune.GameFolder);
-	if err != nil {
+	if strings.Trim(wCommune.GameFolder, " ") == "" {
 		return DefaultGameFolder();
 	}
 

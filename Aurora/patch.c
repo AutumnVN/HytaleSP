@@ -24,23 +24,37 @@ void overwrite(csString* old, csString* new) {
 
 
 void allowOfflineInOnline(uint8_t* mem) {
-
     if (PATTERN_PLATFORM) {
 
-        
-#ifdef __linux__
-        void* target = &mem[13];
-#elif _WIN32
-        void* target = &mem[15];
-#endif
-        int prev = get_prot(target);
-        
-       
-        if (change_prot((uintptr_t)target, get_rw_perms()) == 0) {
-            memset(target, 0x90, 0x6);
+
+        int prev = get_prot(mem);        
+        // the is online mode and is singleplayer checks
+        // are almost right next to eachother, it checks one, then checks the other
+        // .. 
+        //
+        // lea     rcx, [rsp+98h+var_70]
+        // call    sub_7FF7E036D780
+        // cmp     byte ptr [rsp+98h+var_58], 0
+        // jz      loc_7FF7DFEAFAE1
+        // mov     rax, [rbx+0C8h]
+        // mov     rax, [rax+18h]
+        // cmp     qword ptr [rax+0B0h], 0
+        // jz      loc_7FF7DFEAF93A
+        // .. jz instructions always start with 0F 84 .. ..
+        // so we can just scan for that
+        // im pretty sure id have to change this approach if i ever wanted to support ARM64 MacOS though ..
+        // (or if theres ever a 0F 84 in any of the addresses .. hm but thats a chance of 2^16 :D)
+
+        if (change_prot((uintptr_t)mem, get_rw_perms()) == 0) {
+            for (; (mem[0] != 0x0F && mem[1] != 0x84); mem++); // locate the jz instruction ...
+            memset(mem, 0x90, 0x6); // fill with NOP
+
+            for (; (mem[0] != 0x0F && mem[1] != 0x84); mem++); // locate the next jz instruction ...
+            memset(mem, 0x90, 0x6); // fill with NOP
         }
-        
-        change_prot((uintptr_t)target, prev);
+
+
+        change_prot((uintptr_t)mem, prev);
 
     }
 
@@ -63,15 +77,15 @@ void changeServers() {
         {.old = make_csstr(L"https://telemetry."),    .new = make_csstr(L"http://127.0.0")},
         {.old = make_csstr(L"https://tools."),        .new = make_csstr(L"http://127.0.0")},
         {.old = make_csstr(L"hytale.com"),            .new = make_csstr(L".1:59313")},
-        {.old = make_csstr(L"authenticated"),         .new = make_csstr(L"offline")},
+        {.old = make_csstr(L"authenticated"),         .new = make_csstr(L"insecure")},
     };
 
     int totalSwaps = (sizeof(swaps) / sizeof(swapEntry));
     
-    modinfo inf = get_base();
-    uint8_t* memory = inf.start;
+    modinfo modinf = get_base();
+    uint8_t* memory = modinf.start;
 
-    for (size_t i = 0; i < inf.sz; i++) {
+    for (size_t i = 0; i < modinf.sz; i++) {
         // allow online mode in offline mode.
         allowOfflineInOnline(&memory[i]);
         

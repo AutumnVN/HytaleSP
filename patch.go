@@ -13,7 +13,7 @@ import (
 )
 
 
-func applyPatch(source string, destination string, patchFilename string, signatureName *string) error {
+func applyPatch(source string, destination string, patchFilename string, signatureFilename string) error {
 
 	patchReader, err := filesource.Open(patchFilename);
 	if err != nil {
@@ -44,24 +44,21 @@ func applyPatch(source string, destination string, patchFilename string, signatu
 		return err;
 	}
 
-	if signatureName != nil {
-		sigSource, err := filesource.Open(*signatureName);
-		if err != nil {
-			return err;
-		}
-
-		signatureInfo, err := pwr.ReadSignature(context.Background(), sigSource);
-		err = pwr.AssertValid(destination, signatureInfo);
-		if err != nil {
-			return err;
-		}
-
-		err = pwr.AssertNoGhosts(destination, signatureInfo);
-		if err != nil {
-			return err;
-		}
+	sigSource, err := filesource.Open(signatureFilename);
+	if err != nil {
+		return err;
 	}
 
+	signatureInfo, err := pwr.ReadSignature(context.Background(), sigSource);
+	err = pwr.AssertValid(destination, signatureInfo);
+	if err != nil {
+		return err;
+	}
+
+	err = pwr.AssertNoGhosts(destination, signatureInfo);
+	if err != nil {
+		return err;
+	}
 
 	return nil;
 }

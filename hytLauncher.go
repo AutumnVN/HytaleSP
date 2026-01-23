@@ -1,8 +1,11 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -126,6 +129,22 @@ func isGameVersionInstalled(version int, channel string) bool {
 }
 
 
+func verifyFileSha256(fp string, expected string) bool {
+	file, err := os.Open(fp)
+	if err != nil {
+		return false;
+	}
+	defer file.Close();
+
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return false;
+	}
+	digest := hash.Sum(nil);
+
+	return strings.EqualFold(hex.EncodeToString(digest), strings.ToLower(expected));
+}
+
 func installJre(progress func(done int64, total int64)) error{
 
 	if isJreInstalled() {
@@ -156,6 +175,22 @@ func installJre(progress func(done int64, total int64)) error{
 	err = download(downloadUrl, save, progress);
 	if err != nil {
 		return err;
+	}
+
+	valid := false;
+
+	// validate jre
+	switch(runtime.GOOS) {
+		case "windows":
+			valid = verifyFileSha256(save, jres.DownloadUrls.Windows.Amd64.Sha256);
+		case "linux":
+			valid = verifyFileSha256(save, jres.DownloadUrls.Linux.Amd64.Sha256);
+		case "darwin":
+			valid = verifyFileSha256(save, jres.DownloadUrls.Darwin.Arm64.Sha256);
+	}
+
+	if valid == false {
+		return fmt.Errorf("Could not validate the SHA256 hash for the JRE runtime.");
 	}
 
 	os.MkdirAll(unpack, 0775);
@@ -249,7 +284,7 @@ func installGame(version int, channel string, progress func(done int64, total in
 
 		os.MkdirAll(unpack, 0775);
 
-		err = applyPatch(srcPath, unpack, save, &saveSig);
+		err = applyPatch(srcPath, unpack, save, saveSig);
 		if err != nil {
 			return err;
 		}
@@ -345,7 +380,6 @@ func launchGame(version int, channel string, username string, uuid string) error
 
 		// start the client
 
-
 		e := exec.Command(clientBinary,
 			"--app-dir",
 			appDir,
@@ -365,10 +399,11 @@ func launchGame(version int, channel string, username string, uuid string) error
 			generateSessionJwt("hytale:client"));
 
 
-		if runtime.GOOS == "linux" {
-			os.Setenv("LD_PRELOAD", dllName);
-		} else if runtime.GOOS == "darwin" {
-			os.Setenv("DYLD_INSERT_LIBRARIES ", dllName);
+		switch(runtime.GOOS) {
+			case "linux":
+				os.Setenv("LD_PRELOAD", dllName);
+			case "darwin":
+				os.Setenv("DYLD_INSERT_LIBRARIES ", dllName);
 		}
 
 		fmt.Printf("Running: %s\n", strings.Join(e.Args, " "))
@@ -379,13 +414,13 @@ func launchGame(version int, channel string, username string, uuid string) error
 			return err;
 		}
 
-		if runtime.GOOS == "linux" {
-			os.Unsetenv("LD_PRELOAD");
-		} else if runtime.GOOS == "darwin" {
-			os.Unsetenv("DYLD_INSERT_LIBRARIES");
+		switch(runtime.GOOS) {
+			case "linux":
+				os.Unsetenv("LD_PRELOAD");
+			case "darwin":
+				os.Unsetenv("DYLD_INSERT_LIBRARIES ");
 		}
 
-		defer e.Process.Kill();
 		e.Process.Wait();
 
 	} else if wCommune.Mode == "authenticated" { // start authenticated
@@ -432,7 +467,6 @@ func launchGame(version int, channel string, username string, uuid string) error
 			return err;
 		}
 
-		defer e.Process.Kill();
 		e.Process.Wait();
 	} else { // start in offline mode
 
@@ -459,7 +493,6 @@ func launchGame(version int, channel string, username string, uuid string) error
 		}
 
 
-		defer e.Process.Kill();
 		e.Process.Wait();
 	}
 	return nil;

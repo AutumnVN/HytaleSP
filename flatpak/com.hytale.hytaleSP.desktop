@@ -1,0 +1,9 @@
+[Desktop Entry]
+Categories=Game;Java
+Exec=HytaleSP
+Icon=com.hytale.hytaleSP
+Name=HytaleSP
+Terminal=false
+Type=Application
+X-Desktop-File-Install-Version=0.28
+Keywords=Games;Hytale;Launcher;GoLang;HytaleSP  

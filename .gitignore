@@ -4,5 +4,6 @@ builds/*
 redist/*
 *.exe
 *.syso
+*.kate-swp
 
 HytaleSP*

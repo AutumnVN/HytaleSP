@@ -78,6 +78,6 @@ but i wont remove the 'offline' or 'fakeonline' options for those who need them 
 
 # Screenshots 
 
-![hytLauncher ui itself](https://git.silica.codes/Li/HytaleSP/raw/branch/main/Images/screenshot1.png)
-![skin selection screen](https://git.silica.codes/Li/HytaleSP/raw/branch/main/Images/screenshot2.png)
+![HytaleSP ui itself](https://git.silica.codes/Li/HytaleSP/raw/branch/main/images/screenshot1.png)
+![skin selection screen](https://git.silica.codes/Li/HytaleSP/raw/branch/main/images/screenshot2.png)
 

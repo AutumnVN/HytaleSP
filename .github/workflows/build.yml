@@ -1,0 +1,35 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: microsoft/setup-msbuild@v2
+
+    - uses: actions/setup-go@v6
+      with:
+        go-version: '1.25.3'
+
+    - name: Build
+      run: |
+        msbuild Aurora\Aurora.slnx /p:Configuration=Release /p:PlatformToolset=v143
+        go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest
+        go generate
+        go build -ldflags="-H windowsgui"
+
+    - name: Release
+      run: |
+        gh release create release HytaleSP.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,7 +1,7 @@
 CC = gcc
 OUTDIR = Build
 CFLAGS = -O3 -fPIC -fno-stack-protector -fshort-wchar -shared
-OBJ = cs_string.o shared.o patch.o
+OBJ = cs_string.o shared.o patch.o zoom.o
 
 ifeq ($(OS),Windows_NT)
     DLL := .dll

@@ -1,4 +1,5 @@
 #include "cs_string.h"
+#include "zoom.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
@@ -151,7 +152,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpReser
 #ifdef _DEBUG
 		createConsole();
 #endif
-		changeServers();		
+		changeServers();	
+        start_zoom_hook_thread();	
 		return TRUE;
 	case DLL_THREAD_ATTACH:
 	case DLL_THREAD_DETACH:

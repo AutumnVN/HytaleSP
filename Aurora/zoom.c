@@ -17,6 +17,7 @@ static float g_ZoomFov = 30.0f;
 static HWND g_hWnd = NULL;
 static WNDPROC g_OriginalWndProc = NULL;
 static uintptr_t g_FovResetOffset = 0; // offset from module base
+static uint32_t g_FovDisp = 0;         // displacement extracted from matched movss instruction
 
 static DWORD WINAPI ModThread(LPVOID lpParam);
 
@@ -25,7 +26,7 @@ void start_zoom_hook_thread(void) {
 }
 
 void stop_zoom_hook_thread(void) {
-    // no-op for now
+    // no-op
 }
 
 // convert pattern string like "F3 0F 11 81 14 02 00 00" to int array (-1 = wildcard)
@@ -119,7 +120,7 @@ static void write_rel_jmp(uintptr_t address, uintptr_t destination) {
     VirtualProtect((LPVOID)address, 8, old, &old);
 }
 
-static void GenerateShellcode(uint8_t *pCode, uintptr_t returnAddr) {
+static void GenerateShellcode(uint8_t *pCode, uintptr_t returnAddr, const unsigned char *origInstr, size_t instrLen) {
     // As in original: capture RCX into g_CameraFovPtr, capture XMM0 into g_LastNormalFov,
     // check g_bZooming and if true load g_ZoomFov into xmm0, restore and execute original instruction,
     // then jump back.
@@ -174,13 +175,11 @@ static void GenerateShellcode(uint8_t *pCode, uintptr_t returnAddr) {
     // pop rax
     *pCode++ = 0x58;
 
-    // movss [rcx+00000214], xmm0  (original overwritten instruction)
-    *pCode++ = 0xF3;
-    *pCode++ = 0x0F;
-    *pCode++ = 0x11;
-    *pCode++ = 0x81;
-    *(uint32_t *)pCode = 0x00000214;
-    pCode += 4;
+    // copy original overwritten instruction bytes (keeps exact operand/register usage)
+    if (origInstr && instrLen) {
+        memcpy(pCode, origInstr, instrLen);
+        pCode += instrLen;
+    }
 
     // mov rax, imm64(returnAddr)
     *pCode++ = 0x48;
@@ -228,31 +227,34 @@ static DWORD WINAPI ModThread(LPVOID lpParam) {
     g_GameModule = GetModuleHandle(NULL);
     if (!g_GameModule) return 0;
 
-    // Locate patterns
-    uintptr_t fovResetFunc = pattern_scan("56 53 48 83 EC 48 0F 29 74 24 30 48 8B D9 F3 0F 10 83 60 01 00 00 F3 0F 11 83 5C 01 00 00 F3 0F 10 8B 58 01 00 00", 0);
+    // locate patterns
+    uintptr_t fovResetFunc = pattern_scan("56 53 48 83 EC ? 0F 29 74 24 ? 48 8B D9 F3 0F 10 83", 0);
     if (!fovResetFunc) {
         AllocConsole();
         {
             FILE *fDummy;
             freopen_s(&fDummy, "CONOUT$", "w", stdout);
         }
-        printf("FovResetFunction pattern not found.\n");
+        printf("FovResetFunc pattern not found.\n");
         return 0;
     }
 
     g_FovResetOffset = pattern_scan("F3 0F 11 81 14 02 00 00", fovResetFunc);
+    if (g_FovResetOffset == 0) {
+        // version 5
+        g_FovResetOffset = pattern_scan("F3 0F 11 81 1C 02 00 00", fovResetFunc);
+    }
     if (g_FovResetOffset == 0) {
         AllocConsole();
         {
             FILE *fDummy;
             freopen_s(&fDummy, "CONOUT$", "w", stdout);
         }
-        printf("FOV Reset Pattern not found. Exiting.\n");
-        Sleep(2000);
+        printf("g_FovResetOffset pattern not found.\n");
         return 0;
     }
 
-    // Find window
+    // find window
     while (g_hWnd == NULL) {
         EnumWindows(EnumWindowsCallback, 0);
         Sleep(100);
@@ -260,7 +262,7 @@ static DWORD WINAPI ModThread(LPVOID lpParam) {
 
     g_OriginalWndProc = (WNDPROC)SetWindowLongPtr(g_hWnd, GWLP_WNDPROC, (LONG_PTR)Hook_WndProc);
 
-    // Install hook: try to allocate near module
+    // install hook: try to allocate near module
     uintptr_t targetAddr = (uintptr_t)g_GameModule;
     uintptr_t allocAddr = 0;
     MEMORY_BASIC_INFORMATION mbi;
@@ -305,14 +307,31 @@ static DWORD WINAPI ModThread(LPVOID lpParam) {
     g_PayloadBuffer = (LPVOID)allocAddr;
     uint8_t *pCode = (uint8_t *)g_PayloadBuffer;
 
-    uintptr_t returnAddr = (uintptr_t)g_GameModule + g_FovResetOffset + 8; // offset +8 as original
-    GenerateShellcode(pCode, returnAddr);
+    // read the original instruction bytes at the hook site and validate expected form
+    unsigned char origInstr[8] = {0};
+    unsigned char *base = (unsigned char *)g_GameModule;
+    memcpy(origInstr, base + g_FovResetOffset, sizeof(origInstr));
+    size_t instrLen = 8; // movss [reg+disp32], xmm -> 3 opcode + 1 modrm + 4 disp = 8 bytes
+    if (!(origInstr[0] == 0xF3 && origInstr[1] == 0x0F && origInstr[2] == 0x11 && ((origInstr[3] & 0xC0) == 0x80))) {
+        AllocConsole();
+        {
+            FILE *fDummy;
+            freopen_s(&fDummy, "CONOUT$", "w", stdout);
+        }
+        printf("Unexpected instruction at g_FovResetOffset; aborting hook.\n");
+        return 0;
+    }
+
+    uintptr_t returnAddr = (uintptr_t)g_GameModule + g_FovResetOffset + instrLen; // jump back after original instr
+    // extract displacement (little-endian at origInstr+4) so Hook_WndProc can use correct offset
+    g_FovDisp = *(uint32_t *)(origInstr + 4);
+    GenerateShellcode(pCode, returnAddr, origInstr, instrLen);
 
     // Install 5-byte JMP at hookAddress
     uintptr_t hookAddress = (uintptr_t)g_GameModule + g_FovResetOffset;
     write_rel_jmp(hookAddress, allocAddr);
 
-    // Zoom loop: monitor Left Alt to toggle zooming
+    // zoom loop: monitor Left Alt to toggle zooming
     unsigned char prevZoom = 0;
     while (1) {
         unsigned char isZoom = (GetAsyncKeyState(VK_LMENU) & 0x8000) ? 1 : 0;
@@ -321,15 +340,27 @@ static DWORD WINAPI ModThread(LPVOID lpParam) {
             g_bZooming = isZoom;
             // apply fov immediately when toggling
             if (g_CameraFovPtr) {
-                DWORD oldProt;
-                uintptr_t addr = g_CameraFovPtr + 0x214;
-                VirtualProtect((LPVOID)addr, sizeof(float), PAGE_EXECUTE_READWRITE, &oldProt);
-                if (g_bZooming) {
-                    *(float *)addr = g_ZoomFov;
-                } else {
-                    *(float *)addr = g_LastNormalFov;
+                uintptr_t addr = g_CameraFovPtr + (uintptr_t)g_FovDisp;
+                MEMORY_BASIC_INFORMATION mbi;
+                if (VirtualQuery((LPCVOID)addr, &mbi, sizeof(mbi)) && mbi.State == MEM_COMMIT) {
+                    // ensure target looks like a reasonable float (0.1 - 360) before writing
+                    float cur = 0.0f;
+                    __try {
+                        cur = *(float *)addr;
+                    } __except (EXCEPTION_EXECUTE_HANDLER) {
+                        cur = -1.0f;
+                    }
+                    if (cur >= 0.1f && cur <= 360.0f) {
+                        DWORD oldProt;
+                        VirtualProtect((LPVOID)addr, sizeof(float), PAGE_EXECUTE_READWRITE, &oldProt);
+                        if (g_bZooming) {
+                            *(float *)addr = g_ZoomFov;
+                        } else {
+                            *(float *)addr = g_LastNormalFov;
+                        }
+                        VirtualProtect((LPVOID)addr, sizeof(float), oldProt, &oldProt);
+                    }
                 }
-                VirtualProtect((LPVOID)addr, sizeof(float), oldProt, &oldProt);
             }
         }
         Sleep(10);

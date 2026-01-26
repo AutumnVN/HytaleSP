@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"regexp"
 	"io"
 	"net/http"
 	"net/url"
@@ -18,6 +19,20 @@ import (
 
 	"github.com/c4milo/unpackit"
 )
+
+// ValidateUsername enforces username rules:
+// - length 3..16
+// - characters: A-Z a-z 0-9 _
+func ValidateUsername(username string) error {
+	if len(username) < 3 || len(username) > 16 {
+		return fmt.Errorf("username must be between 3 and 16 characters")
+	}
+	re := regexp.MustCompile(`^[A-Za-z0-9_]+$`)
+	if !re.MatchString(username) {
+		return fmt.Errorf("username may only contain letters, numbers, and underscores")
+	}
+	return nil
+}
 
 
 func urlToPath(targetUrl string) string {
@@ -340,6 +355,13 @@ func launchGame(version int, channel string, username string, uuid string) error
 
 	javaBin, _ := findJavaBin().(string);
 
+	// validate provided username when present
+	if username != "" {
+		if err := ValidateUsername(username); err != nil {
+			return err
+		}
+	}
+
 	appDir := getVersionInstallPath(version, channel)
 	userDir := UserDataFolder()
 	clientBinary := findClientBinary(version, channel);
@@ -442,6 +464,11 @@ func launchGame(version int, channel string, username string, uuid string) error
 		newSess, err := getNewSession(*wCommune.AuthTokens, profile.UUID);
 		if(err != nil) {
 			return err;
+		}
+
+		// validate profile username coming from account data
+		if err := ValidateUsername(profile.Username); err != nil {
+			return err
 		}
 
 		e := exec.Command(clientBinary,

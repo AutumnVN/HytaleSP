@@ -30,6 +30,6 @@ jobs:
 
     - name: Release
       run: |
-        gh release create release HytaleSP.exe
+        gh release upload release --clobber HytaleSP.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

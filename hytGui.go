@@ -22,6 +22,7 @@ import (
 type launcherCommune struct {
 	Patchline string `json:"last_patchline"`
 	Username string `json:"last_username"`
+	CustomUuid string `json:"last_uuid"`
 	SelectedVersion int `json:"last_version"`
 	LatestVersions map[string]int `json:"last_version_scan_result"`
 	GameFolder string `json:"install_directory"`
@@ -36,7 +37,8 @@ var(
 	wMainWin *windows.Window
 	wCommune = launcherCommune {
 		Patchline: "release",
-		Username: "TransRights",
+		Username: "Username",
+		CustomUuid: "",
 		LatestVersions: map[string]int{
 			"release": 5,
 			"pre-release": 12,
@@ -435,6 +437,15 @@ func usernameBox() base.Widget {
 						wCommune.Username = v;
 					},
 			},
+			&goey.Label{Text: "Custom UUID (optional,leave blank to auto-generate):"},
+			&goey.TextInput{
+				Value: wCommune.CustomUuid,
+				Placeholder: "Custom UUID (optional)",
+				Disabled: wDisabled,
+				OnChange: func(v string) {
+					wCommune.CustomUuid = v;
+				},
+			},
 		},
 	};
 }
@@ -613,7 +624,7 @@ func renderWindow() base.Widget {
 									return;
 								};
 
-								err = launchGame(wCommune.SelectedVersion, wCommune.Patchline, wCommune.Username, usernameToUuid(wCommune.Username));
+								err = launchGame(wCommune.SelectedVersion, wCommune.Patchline, wCommune.Username, effectiveUuid());
 
 								if err != nil {
 									showErrorDialog(fmt.Sprintf("Error running the game: %s", err), "Run game failed.");

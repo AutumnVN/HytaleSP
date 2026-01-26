@@ -137,7 +137,7 @@ func genAccountInfo() accountInfo {
 	readSkinData();
 	return accountInfo{
 		Username: wCommune.Username,
-		UUID: usernameToUuid(wCommune.Username),
+		UUID: effectiveUuid(),
 		Entitlements: ENTITLEMENTS,
 		CreatedAt: time.Now(),
 		NextNameChangeAt: time.Now(),
@@ -339,7 +339,7 @@ func generateSessionJwt(scope string) string {
 		Iss: SERVER_PROTOCOL + SERVER_URI,
 		Jti: uuid.NewString(),
 		Scope: scope,
-		Sub: usernameToUuid(wCommune.Username),
+		Sub: effectiveUuid(),
 	};
 
 	return make_jwt(sesTok);
@@ -354,6 +354,13 @@ func usernameToUuid(username string) string {
 	return h[:8]+"-"+h[8:12]+"-"+h[12:16]+"-"+h[16:20]+"-"+h[20:32];
 }
 
+func effectiveUuid() string {
+	if wCommune.CustomUuid != "" {
+		return wCommune.CustomUuid
+	}
+	return usernameToUuid(wCommune.Username)
+}
+
 func generateIdentityJwt(scope string) string {
 
 	idTok := identityToken {
@@ -362,7 +369,7 @@ func generateIdentityJwt(scope string) string {
 		Iss: SERVER_PROTOCOL + SERVER_URI,
 		Jti: uuid.NewString(),
 		Scope: scope,
-		Sub: usernameToUuid(wCommune.Username),
+		Sub: effectiveUuid(),
 		Profile: profileInfo {
 			Username: wCommune.Username,
 			Entitlements: ENTITLEMENTS,

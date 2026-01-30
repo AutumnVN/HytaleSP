@@ -2,13 +2,13 @@
     "FixedFileInfo": {
         "FileVersion": {
             "Major": 1,
-            "Minor": 9,
+            "Minor": 0,
             "Patch": 0,
             "Build": 0
         },
         "ProductVersion": {
             "Major": 1,
-            "Minor": 9,
+            "Minor": 0,
             "Patch": 0,
             "Build": 0
         },
@@ -22,14 +22,14 @@
         "Comments": "",
         "CompanyName": "HytaleSP",
         "FileDescription": "HytaleSP",
-        "FileVersion": "v0.9.0.0",
+        "FileVersion": "v1.0.0.0",
         "InternalName": "HytaleSP",
         "LegalCopyright": "HytaleSP",
         "LegalTrademarks": "HytaleSP",
         "OriginalFilename": "HytaleSP.exe",
         "PrivateBuild": "",
         "ProductName": "HytaleSP",
-        "ProductVersion": "v0.9.0.0",
+        "ProductVersion": "v1.0.0.0",
         "SpecialBuild": ""
     },
     "VarFileInfo": {

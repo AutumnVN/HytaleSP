@@ -55,6 +55,10 @@ type cosmeticsInventory struct {
 	Underwear          []string `json:"underwear"`
 }
 
+type sessionChild struct {
+	Scopes []string `json:"scopes"`
+}
+
 type versionStep struct {
 	From int    `json:"from"`
 	Pwr  string `json:"pwr"`

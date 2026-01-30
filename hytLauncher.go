@@ -366,6 +366,11 @@ func launchGame(version int, channel string, username string, uuid string) error
 	userDir := UserDataFolder()
 	clientBinary := findClientBinary(version, channel);
 
+	// create user directory
+	os.MkdirAll(userDir, 0775);
+
+
+
 	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
 		os.Chmod(javaBin, 0775);
 		os.Chmod(clientBinary, 0775);
@@ -419,9 +424,9 @@ func launchGame(version int, channel string, username string, uuid string) error
 			"--name",
 			username,
 			"--identity-token",
-			generateIdentityJwt("hytale:client"),
+			generateIdentityJwt([]string{"hytale:client"}),
 			"--session-token",
-			generateSessionJwt("hytale:client"));
+			generateSessionJwt([]string{"hytale:client"}));
 
 
 		switch(runtime.GOOS) {

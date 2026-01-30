@@ -1,5 +1,5 @@
-bitbucket.org/rj/goey v0.9.1-0.20250403173715-8582ce21557a h1:5NqdAb31B3mcLO4crbIEu7o6qlnU9DsfXrdsCal5wxk=
-bitbucket.org/rj/goey v0.9.1-0.20250403173715-8582ce21557a/go.mod h1:b8eQW5jA2H7NmlWj/80VtikvrLim9zVCulg8hZ10wuI=
+git.silica.codes/Li/goey v0.9.1-0.20260128233726-bc08fc187cb8 h1:aqtgjgWOdE+sWnAzc7Z7giCQDpIQxCU5Fs/LLqQk7rw=
+git.silica.codes/Li/goey v0.9.1-0.20260128233726-bc08fc187cb8/go.mod h1:6i/BL2rvu24zLpWHtg3ooGb2mhkr29PMYCbDyudYM44=
 github.com/TheTitanrain/w32 v0.0.0-20180517000239-4f5cfb03fabf h1:FPsprx82rdrX2jiKyS17BH6IrTmUBYqZa/CXT4uvb+I=
 github.com/TheTitanrain/w32 v0.0.0-20180517000239-4f5cfb03fabf/go.mod h1:peYoMncQljjNS6tZwI9WVyQB3qZS6u79/N3mBOcnd3I=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=

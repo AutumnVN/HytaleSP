@@ -3,7 +3,7 @@ module HytaleSP
 go 1.25.3
 
 require (
-	bitbucket.org/rj/goey v0.9.1-0.20250403173715-8582ce21557a
+	git.silica.codes/Li/goey v0.9.1-0.20260128233726-bc08fc187cb8
 	github.com/c4milo/unpackit v1.0.0
 	github.com/google/uuid v1.6.0
 	github.com/itchio/lake v0.0.0-20200305150023-cc4284ec2b2a

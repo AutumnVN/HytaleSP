@@ -14,7 +14,10 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
+
 	"github.com/google/uuid"
 )
 
@@ -137,7 +140,7 @@ func genAccountInfo() accountInfo {
 	readSkinData();
 	return accountInfo{
 		Username: wCommune.Username,
-		UUID: effectiveUuid(),
+		UUID: getUUID(),
 		Entitlements: ENTITLEMENTS,
 		CreatedAt: time.Now(),
 		NextNameChangeAt: time.Now(),
@@ -203,10 +206,13 @@ func handleMyAccountLauncherData(w http.ResponseWriter, req *http.Request) {
 
 func handleSessionChild(w http.ResponseWriter, req *http.Request) {
 
+	sessionRequest := sessionChild{};
+	json.NewDecoder(req.Body).Decode(&sessionRequest);
+
 	session := sessionNew{
 		ExpiresAt: time.Now().Add(time.Hour*10),
-		IdentityToken: generateIdentityJwt("hytale:server"),
-		SessionToken: generateSessionJwt("hytale:server"),
+		IdentityToken: generateIdentityJwt(sessionRequest.Scopes),
+		SessionToken: generateSessionJwt(sessionRequest.Scopes),
 	}
 
 	w.Header().Add("Content-Type", "application/json");
@@ -329,47 +335,45 @@ func make_jwt(body any) string {
 	return jwt;
 }
 
+func getUUID() string{
+	r, err := regexp.MatchString("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", strings.ToLower(wCommune.UUID));
+	if err == nil || r == false{
+		m := md5.New();
+		m.Write([]byte(wCommune.Username));
+		h := hex.EncodeToString(m.Sum(nil));
 
-func generateSessionJwt(scope string) string {
+		return h[:8]+"-"+h[8:12]+"-"+h[12:16]+"-"+h[16:20]+"-"+h[20:32];
+	}
+	return wCommune.UUID;
+}
+
+func generateSessionJwt(scope []string) string {
 
 
 	sesTok := sessionToken {
-		Exp: int(time.Now().Add(time.Hour*10).Unix()),
+		Exp: int(time.Now().Add(time.Hour*200).Unix()),
 		Iat: int(time.Now().Unix()),
 		Iss: SERVER_PROTOCOL + SERVER_URI,
 		Jti: uuid.NewString(),
-		Scope: scope,
-		Sub: effectiveUuid(),
+		Scope: strings.Join(scope, " "),
+		Sub: getUUID(),
 	};
+	fmt.Printf("[JWT] Generating new session JWT with scopes: %s\n", sesTok.Scope);
 
 	return make_jwt(sesTok);
 }
 
 
-func usernameToUuid(username string) string {
-	m := md5.New();
-	m.Write([]byte(username));
-	h := hex.EncodeToString(m.Sum(nil));
 
-	return h[:8]+"-"+h[8:12]+"-"+h[12:16]+"-"+h[16:20]+"-"+h[20:32];
-}
-
-func effectiveUuid() string {
-	if wCommune.CustomUuid != "" {
-		return wCommune.CustomUuid
-	}
-	return usernameToUuid(wCommune.Username)
-}
-
-func generateIdentityJwt(scope string) string {
+func generateIdentityJwt(scope []string) string {
 
 	idTok := identityToken {
-		Exp: int(time.Now().Add(time.Hour*10).Unix()),
+		Exp: int(time.Now().Add(time.Hour*200).Unix()),
 		Iat: int(time.Now().Unix()),
 		Iss: SERVER_PROTOCOL + SERVER_URI,
 		Jti: uuid.NewString(),
-		Scope: scope,
-		Sub: effectiveUuid(),
+		Scope: strings.Join(scope, " "),
+		Sub: getUUID(),
 		Profile: profileInfo {
 			Username: wCommune.Username,
 			Entitlements: ENTITLEMENTS,
@@ -377,5 +381,6 @@ func generateIdentityJwt(scope string) string {
 		},
 	};
 
+	fmt.Printf("[JWT] Generating new identity JWT with scopes: %s\n", idTok.Scope);
 	return make_jwt(idTok);
 }
